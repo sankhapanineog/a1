@@ -66,7 +66,7 @@ def generate_random_data():
 
 # Streamlit app
 def main():
-    st.title("Simple Neural Network Asset Health Prediction App")
+    st.title("Group 7: Neural Network Asset Health Prediction App")
 
     # Generate random data for three days
     data = generate_random_data()
