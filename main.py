@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 
 # Activation function (sigmoid)
 def sigmoid(x):
@@ -68,8 +69,21 @@ def generate_random_data():
 def main():
     st.title("Group 7: Neural Network Asset Health Prediction App")
 
-    # Generate random data for three days
-    data = generate_random_data()
+    # Option to Generate Random Data or Upload CSV
+    data_option = st.radio("Choose Data Source:", ("Generate Random Data", "Upload CSV"))
+
+    if data_option == "Generate Random Data":
+        # Generate random data for three days
+        data = generate_random_data()
+    else:
+        # Upload CSV file
+        uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
+
+        if uploaded_file is not None:
+            data = pd.read_csv(uploaded_file)
+        else:
+            st.warning("Please upload a CSV file or choose to generate random data.")
+            return
 
     # Sidebar - Neural Network Configuration
     st.sidebar.header("Neural Network Configuration")
@@ -78,11 +92,14 @@ def main():
     threshold = st.sidebar.slider("Threshold for Health Prediction", min_value=0.1, max_value=0.9, value=0.5, step=0.1)
 
     # Prepare data
-    X = data['value'].values.reshape(1, -1)
-    Y = np.zeros((1, len(X)))  # Initialize Y with zeros
+    if 'health_label' in data.columns:
+        # Use actual labels from the data
+        Y = (data['health_label'] == 'Healthy').astype(int).values.reshape(1, -1)
+    else:
+        # If 'health_label' is not present, create placeholder labels
+        Y = np.zeros((1, len(data)))
 
-    # Set Y for the last portion of the data as a placeholder for future health label
-    Y[0, -100:] = 1  # Placeholder for the last 100 values, assuming the data has 4320 values
+    X = data['value'].values.reshape(1, -1)
 
     # Train neural network
     parameters = train_neural_network(X, Y, learning_rate, num_iterations)
@@ -91,27 +108,25 @@ def main():
     predictions_original = predict(X, parameters)
 
     # Label data using threshold
-    data['health_label'] = np.where(predictions_original.flatten() > threshold, 'Healthy', 'Unhealthy')
+    data['predicted_health_label'] = np.where(predictions_original.flatten() > threshold, 'Healthy', 'Unhealthy')
 
-    # Plot original data with health labels
-    st.subheader("Original Data Plot with Health Labels")
-    fig = px.line(data, x='timestamp', y='value', color='health_label', labels={'value': 'Original Data'})
+    # Plot original data with predicted health labels
+    st.subheader("Data Plot with Predicted Health Labels")
+    fig = px.line(data, x='timestamp', y='value', color='predicted_health_label', labels={'value': 'Data'})
     st.plotly_chart(fig)
 
-    # Generate random data for the fourth day
-    data_future = generate_random_data()
+    # Performance Matrix and Explanations
 
-    # Make predictions for the future data
-    X_future = data_future['value'].values.reshape(1, -1)
-    predictions_future = predict(X_future, parameters)
+    st.subheader("Performance Matrix")
+    y_true = Y.flatten()
+    y_pred = predictions_original.flatten() > threshold
+    cm = confusion_matrix(y_true, y_pred)
+    accuracy = accuracy_score(y_true, y_pred)
+    classification_rep = classification_report(y_true, y_pred)
 
-    # Label future data using threshold
-    data_future['health_label'] = np.where(predictions_future.flatten() > threshold, 'Healthy', 'Unhealthy')
-
-    # Plot forecasted data with health labels
-    st.subheader("Forecasted Data Plot with Health Labels")
-    fig_future = px.line(data_future, x='timestamp', y='value', color='health_label', labels={'value': 'Forecasted Data'})
-    st.plotly_chart(fig_future)
+    st.write(f"Confusion Matrix:\n{cm}")
+    st.write(f"Accuracy: {accuracy}")
+    st.write(f"Classification Report:\n{classification_rep}")
 
 if __name__ == "__main__":
     main()
